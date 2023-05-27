@@ -1,32 +1,43 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, protocol } = require('electron')
 const path = require('path')
+const fs = require('fs')
 
-let mainWindow
+const appdata = app.getPath('appData')
+const roaming = path.join(appdata, 'gamelauncher')
+if (!fs.existsSync(roaming)) fs.mkdirSync(roaming)
+const locallow = path.join(path.join(appdata, '..'), 'LocalLow', 'gamelauncher')
+if (!fs.existsSync(locallow)) fs.mkdirSync(locallow)
+const temp = path.join(app.getPath('temp'), 'gamelauncher')
+if (!fs.existsSync(temp)) fs.mkdirSync(temp)
 
 function createWindow() {
-    mainWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
+    const mainWindow = new BrowserWindow({
+        title: 'NoPack',
         icon: path.join(__dirname, './public/favicon.ico'),
+        center: true,
+        darkTheme: true,
+        minWidth: 1024,
+        width: 1024,
+        minHeight: 600,
+        height: 600,
+        autoHideMenuBar: true,
         webPreferences: {
-            nodeIntegration: false,
+            webSecurity: false,
             contextIsolation: true,
-            enableRemoteModule: false,
+            devTools: true,
             preload: path.join(__dirname, 'electron-preloader.js')
         },
     })
 
-    console.log(process.env.NODE_ENV);
-    if (process.env.NODE_ENV === 'development') mainWindow.loadURL('http://localhost:45678/')
-    else mainWindow.loadFile(path.join(__dirname, './dist/index.html'))
-}
+    mainWindow.setMenuBarVisibility(false)
+    // mainWindow.setMenu(null)
 
-app.whenReady().then(() => {
-    createWindow()
+    process.env.NODE_ENV === 'development' ? mainWindow.loadURL('http://localhost:45678/') : mainWindow.loadFile(path.join(__dirname, './dist/index.html'))
+    protocol.registerFileProtocol('file', (request, callback) => callback(decodeURI(request.url.replace('file:///', ''))))
+    app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors')
 
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
-})
+    app.on('window-all-closed', () => process.platform !== 'darwin' ? app.quit() : null)
+}
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
-
-ipcMain.on('console-log', (event, message) => console.log(message))
+app.on('ready', () => createWindow())
